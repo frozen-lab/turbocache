@@ -84,6 +84,11 @@ impl Default for SlotOffset {
 }
 
 impl SlotOffset {
+    // TODO: Add tests for:
+    // - `from_self`:
+    //   - Test with various valid packed values to ensure correct unpacking of offset and vlen.
+    //   - Test edge cases for offset (0, max_offset) and vlen (0, max_vlen).
+    //   - Ensure that the bitwise operations correctly isolate and shift the values.
     /// Unpacks a packed u32 into (offset, vlen).
     fn from_self(packed: SlotOffset) -> (u32, u16) {
         const OFFSET_MASK: u32 = (1 << 20) - 1;
@@ -94,6 +99,12 @@ impl SlotOffset {
         (offset, vlen)
     }
 
+    // TODO: Add tests for:
+    // - `to_self`:
+    //   - Test with various valid vlen and offset combinations to ensure correct packing.
+    //   - Test edge cases for vlen (0, max_vlen) and offset (0, max_offset).
+    //   - Ensure that the assertions for vlen and offset bounds are correctly triggered.
+    //   - Verify that the packed u32 can be unpacked back to the original vlen and offset.
     /// Packs a 12‑bit vlen and a 20‑bit offset into a single u32.
     fn to_self(vlen: u16, offset: u32) -> u32 {
         assert!(
@@ -153,6 +164,14 @@ impl Default for ShardSlot {
 }
 
 impl ShardSlot {
+    // TODO: Add tests for:
+    // - `lookup_candidate_or_empty`:
+    //   - Test case where candidate is found and an empty slot is also available (should return candidate index).
+    //   - Test case where candidate is found and no empty slot is available.
+    //   - Test case where candidate is not found but an empty slot is available.
+    //   - Test case where candidate is not found and no empty slot is available (row is full).
+    //   - Test with `SlotKey::default()` as candidate (should not find it, but find empty slots).
+    //   - Test with a mix of default and non-default keys in the slot.
     // lookup the index of the candidate in the slot, if not found
     // the index of the empty slot is returned
     fn lookup_candidate_or_empty(&self, candidate: SlotKey) -> (Option<usize>, Option<usize>) {
@@ -171,6 +190,12 @@ impl ShardSlot {
         (None, empty_idx)
     }
 
+    // TODO: Add tests for:
+    // - `lookup_candidate`:
+    //   - Test case where candidate is found and is not a default key.
+    //   - Test case where candidate is found but is a default key (should not be found).
+    //   - Test case where candidate is not found.
+    //   - Test with a mix of default and non-default keys in the slot.
     // lookup the index of the candidate in the slot
     fn lookup_candidate(&self, candidate: SlotKey) -> Option<usize> {
         for (idx, &slot_k) in self.keys.iter().enumerate() {
@@ -261,6 +286,12 @@ struct ShardFile {
 }
 
 impl ShardFile {
+    // TODO: Add tests for:
+    // - `open`:
+    //   - Test opening a new file (is_new = true): Verify file creation, initial header values (magic, version, n_occupied, write_offset).
+    //   - Test opening an existing file (is_new = false): Verify file is opened without truncation and header values are read correctly.
+    //   - Test with invalid paths (e.g., non-existent directory, permission denied).
+    //   - Test with a file that is too small to map the header.
     fn open(path: &PathBuf, is_new: bool) -> TResult<Self> {
         let file = {
             if is_new {
@@ -275,6 +306,10 @@ impl ShardFile {
         Ok(Self { file, mmap })
     }
 
+    // TODO: Add tests for:
+    // - `new`:
+    //   - Test creating a new file: Verify file is created, truncated, and has the correct initial length (HEADER_SIZE).
+    //   - Test with invalid paths (e.g., permission denied).
     fn new(path: &PathBuf) -> TResult<File> {
         let file = Self::file(path, true)?;
         file.set_len(HEADER_SIZE)?;
@@ -293,6 +328,12 @@ impl ShardFile {
         Ok(())
     }
 
+    // TODO: Add tests for:
+    // - `file`:
+    //   - Test creating a new file with `truncate = true`: Verify file is created, truncated, and writable.
+    //   - Test opening an existing file with `truncate = true`: Verify file is truncated and writable.
+    //   - Test opening an existing file with `truncate = false`: Verify file is opened without truncation.
+    //   - Test with invalid paths (e.g., permission denied, non-existent directory).
     fn file(path: &PathBuf, truncate: bool) -> TResult<File> {
         let file = OpenOptions::new()
             .create(true)
@@ -304,30 +345,55 @@ impl ShardFile {
         Ok(file)
     }
 
+    // TODO: Add tests for:
+    // - `header`:
+    //   - Verify that the returned reference points to the correct memory location within the mmap.
+    //   - Ensure that accessing fields through the header reference works correctly.
     /// Returns an immutable reference to the shard header
     #[inline(always)]
     fn header(&self) -> &ShardHeader {
         unsafe { &*(self.mmap.as_ptr() as *const ShardHeader) }
     }
 
+    // TODO: Add tests for:
+    // - `header_mut`:
+    //   - Verify that the returned mutable reference points to the correct memory location within the mmap.
+    //   - Ensure that modifying fields through the mutable header reference works correctly and is reflected in the mmap.
     /// Returns a mutable reference to the shard header
     #[inline(always)]
     fn header_mut(&self) -> &mut ShardHeader {
         unsafe { &mut *(self.mmap.as_ptr() as *mut ShardHeader) }
     }
 
+    // TODO: Add tests for:
+    // - `row`:
+    //   - Test with valid `idx` within bounds.
+    //   - Test with `idx` at the boundaries (0 and ROWS_NUM - 1).
+    //   - Ensure that the returned reference is indeed immutable.
     /// Returns an immutable reference to a specific row in the index
     #[inline(always)]
     fn row(&self, idx: usize) -> &ShardSlot {
         &self.header().index.0[idx]
     }
 
+    // TODO: Add tests for:
+    // - `row_mut`:
+    //   - Test with valid `idx` within bounds.
+    //   - Test with `idx` at the boundaries (0 and ROWS_NUM - 1).
+    //   - Ensure that the returned reference is indeed mutable and changes are reflected.
     /// Returns a mutable reference to a specific row in the index
     #[inline(always)]
     fn row_mut(&self, idx: usize) -> &mut ShardSlot {
         &mut self.header_mut().index.0[idx]
     }
 
+    // TODO: Add tests for:
+    // - `write_slot`:
+    //   - Test writing a small value.
+    //   - Test writing a large value (up to the maximum allowed by `SlotOffset::to_self`).
+    //   - Test writing multiple values sequentially and verify `write_offset` increments correctly.
+    //   - Test error handling if `write_all_at` fails (e.g., disk full, permission issues).
+    //   - Verify the returned `SlotOffset` correctly packs the vlen and the new write offset.
     fn write_slot(&self, vbuf: &[u8]) -> TResult<SlotOffset> {
         let vlen = vbuf.len();
 
@@ -344,6 +410,13 @@ impl ShardFile {
         Ok(SlotOffset(offset))
     }
 
+    // TODO: Add tests for:
+    // - `read_slot`:
+    //   - Test reading a small value that was previously written.
+    //   - Test reading a large value that was previously written.
+    //   - Test reading a value at the beginning, middle, and end of the file.
+    //   - Test error handling if `read_exact_at` fails (e.g., file truncated, I/O error).
+    //   - Test with an invalid `SlotOffset` (e.g., offset out of bounds, vlen too large).
     fn read_slot(&self, slot: SlotOffset) -> TResult<Vec<u8>> {
         let (offset, vlen) = SlotOffset::from_self(slot);
         let mut buf = vec![0u8; vlen as usize];
@@ -353,6 +426,14 @@ impl ShardFile {
         Ok(buf)
     }
 
+    // TODO: Add tests for:
+    // - `read_exact_at` (Unix):
+    //   - Test reading exact bytes from a file at a given offset.
+    //   - Test reading at the beginning, middle, and end of the file.
+    //   - Test with `buf` size equal to file size.
+    //   - Test with `buf` size larger than remaining file size (should return `UnexpectedEof`).
+    //   - Test with invalid offset (e.g., beyond EOF).
+    //   - Test error handling for I/O errors (e.g., file closed, permission issues).
     /// Reads the exact number of bytes required to fill `buf` from a given offset.
     #[cfg(unix)]
     fn read_exact_at(f: &File, buf: &mut [u8], offset: u64) -> TResult<()> {
@@ -361,6 +442,13 @@ impl ShardFile {
         Ok(())
     }
 
+    // TODO: Add tests for:
+    // - `write_all_at` (Unix):
+    //   - Test writing a small buffer to a file at a given offset.
+    //   - Test writing a large buffer.
+    //   - Test writing at the beginning, middle, and end of the file.
+    //   - Test writing beyond the current EOF (file should extend).
+    //   - Test error handling for I/O errors (e.g., disk full, permission issues).
     /// Writes a buffer to a file at a given offset.
     #[cfg(unix)]
     fn write_all_at(f: &File, buf: &[u8], offset: u64) -> TResult<()> {
@@ -369,6 +457,14 @@ impl ShardFile {
         Ok(())
     }
 
+    // TODO: Add tests for:
+    // - `read_exact_at` (Windows):
+    //   - Test reading exact bytes from a file at a given offset.
+    //   - Test reading at the beginning, middle, and end of the file.
+    //   - Test with `buf` size equal to file size.
+    //   - Test with `buf` size larger than remaining file size (should return `UnexpectedEof`).
+    //   - Test with invalid offset (e.g., beyond EOF).
+    //   - Test error handling for I/O errors (e.g., file closed, permission issues).
     /// Reads the exact number of bytes required to fill `buf` from a given offset.
     #[cfg(windows)]
     fn read_exact_at(f: &File, mut buf: &mut [u8], mut offset: u64) -> std::io::Result<()> {
@@ -390,6 +486,13 @@ impl ShardFile {
         }
     }
 
+    // TODO: Add tests for:
+    // - `write_all_at` (Windows):
+    //   - Test writing a small buffer to a file at a given offset.
+    //   - Test writing a large buffer.
+    //   - Test writing at the beginning, middle, and end of the file.
+    //   - Test writing beyond the current EOF (file should extend).
+    //   - Test error handling for I/O errors (e.g., disk full, permission issues).
     /// Writes a buffer to a file at a given offset.
     #[cfg(windows)]
     fn write_all_at(f: &File, mut buf: &[u8], mut offset: u64) -> std::io::Result<()> {
@@ -418,6 +521,13 @@ pub(crate) struct Shard {
 }
 
 impl Shard {
+    // TODO: Add tests for:
+    // - `open`:
+    //   - Test opening a new shard: Verify file creation, correct filename based on span, and initial header state.
+    //   - Test opening an existing shard without truncation: Verify file is opened and existing data is accessible.
+    //   - Test opening an existing shard with truncation: Verify file is truncated and header is re-initialized.
+    //   - Test with invalid `dirpath` (e.g., non-existent, permission denied).
+    //   - Test with edge-case spans (e.g., very small, very large).
     /// Opens a shard, creating it if it doesn't exist or truncating it if requested.
     ///
     /// NOTE: The shard's filename is derived from its `span`.
@@ -429,6 +539,15 @@ impl Shard {
         Ok(Self { span, file })
     }
 
+    // TODO: Add tests for:
+    // - `set`:
+    //   - Test inserting a new key-value pair: Verify `n_occupied` increments, key and offset are stored correctly.
+    //   - Test overwriting an existing key-value pair: Verify `n_occupied` does not change, offset is updated, and old value is overwritten.
+    //   - Test inserting into a full row: Verify `TError::RowFull` is returned.
+    //   - Test with different key and value sizes (small, large, edge cases for MAX_KEY_SIZE).
+    //   - Test concurrent `set` operations (if applicable, though `fetch_add` handles atomicity).
+    //   - Test with keys that hash to the same row but are different (collision handling).
+    //   - Test with `vbuf` being empty.
     /// Sets a key-value pair in the shard.
     pub fn set(&self, kbuf: &[u8; MAX_KEY_SIZE], vbuf: &[u8], hash: TurboHasher) -> TResult<()> {
         let candidate = SlotKey(*kbuf);
@@ -465,6 +584,13 @@ impl Shard {
         Err(TError::RowFull(row_idx))
     }
 
+    // TODO: Add tests for:
+    // - `get`:
+    //   - Test retrieving an existing key-value pair: Verify correct value is returned.
+    //   - Test retrieving a non-existent key: Verify `Ok(None)` is returned.
+    //   - Test retrieving a key that was previously removed: Verify `Ok(None)` is returned.
+    //   - Test with different key sizes.
+    //   - Test error handling if `read_slot` fails.
     /// Retrieves a value by its key from the shard.
     ///
     /// Returns `Ok(Some(value))` if the key is found, `Ok(None)` if not, and
@@ -484,6 +610,12 @@ impl Shard {
         Ok(None)
     }
 
+    // TODO: Add tests for:
+    // - `remove`:
+    //   - Test removing an existing key-value pair: Verify `n_occupied` decrements, key and offset are reset to default, and `Ok(Some(vbuf))` is returned.
+    //   - Test removing a non-existent key: Verify `Ok(None)` is returned and `n_occupied` does not change.
+    //   - Test removing a key that was already removed: Verify `Ok(None)` is returned.
+    //   - Test error handling if `read_slot` fails during removal.
     /// Removes a key-value pair from the shard.
     ///
     /// Returns `Ok(true)` if the key was found and removed, `Ok(false)` if not.
@@ -511,6 +643,16 @@ impl Shard {
         Ok(None)
     }
 
+    // TODO: Add tests for:
+    // - `split`:
+    //   - Test splitting an empty shard: Verify two new empty shards are created with correct spans and filenames, and the original is removed.
+    //   - Test splitting a shard with a single entry: Verify the entry moves to the correct new shard based on its `shard_selector`.
+    //   - Test splitting a shard with multiple entries distributed across both new shards: Verify all entries are correctly moved.
+    //   - Test splitting a shard where some entries cannot be inserted into the new shards (e.g., due to full rows): Verify these are returned in `remaining_kvs`.
+    //   - Test splitting with various span sizes, including edge cases (e.g., span of 2).
+    //   - Test error handling during file operations (e.g., `sync_all`, `rename`, `remove_file`).
+    //   - Test that `n_occupied` and `write_offset` are correctly updated in the new shards.
+    //   - Test with deleted entries in the original shard: Ensure they are not transferred to the new shards.
     pub fn split(
         &self,
         dirpath: &PathBuf,
